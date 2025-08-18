@@ -1,0 +1,21 @@
+/* App.css */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Apply background only to body (or .main) */
+body {
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-image: url("./assets/245.jpg");
+}
+.hero
+{
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 32px;
+    width: auto;
+}
