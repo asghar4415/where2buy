@@ -14,11 +14,12 @@ export const Hero5 = () => {
   };
 
   return (
-    <div className="w-full">
-      <div className="container mx-auto">
-        <div className="flex gap-8 py-20 lg:py-40 items-center justify-center flex-col">
-          <div className="flex gap-10 flex-col">
-            <h1 className="text-2xl md:text-5xl max-w-2xl tracking-tighter text-center font-regular">
+    <div className="w-full sm:px-3 lg:px-2 ">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex flex-col items-center text-center py-16 sm:py-24 lg:py-32 gap-8">
+          {/* Heading */}
+          <div className="flex flex-col gap-6 max-w-2xl">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight">
               <span className="text-spektr-cyan-50">
                 Are you thinking about
                 <br />
@@ -26,26 +27,36 @@ export const Hero5 = () => {
               </span>
             </h1>
 
-            <p className="text-lg md:text-xl leading-relaxed tracking-tight text-muted-foreground max-w-2xl text-center">
+            <p className="text-base sm:text-lg md:text-xl text-muted-foreground leading-relaxed">
               Type/paste the list of items you want to buy, or upload an image
               of your shopping list and we'll help you find the best places to
               purchase them.
             </p>
           </div>
 
-          {/* Input + Upload + Search in one row */}
-          <div className="flex flex-col md:flex-col gap-5 w-full max-w-2xl">
-            {/* Input */}
-            <Input
-              placeholder="Type or paste your items here..."
-              value={list}
-              onChange={(e) => setList(e.target.value)}
-              className="flex-1 h-19 px-4"
-            />
+          {/* Card */}
+          <div className="w-full max-w-2xl flex flex-col gap-6 max-h-3xl">
+            {/* Input Box */}
+            <div className="rounded-xl bg-white p-6 sm:p-8 text-left space-y-3">
+              <label
+                htmlFor="items-input"
+                className="block text-sm font-medium !mb-2 text-gray-700 "
+              >
+                Enter your items
+              </label>
 
-            {/* Upload */}
-            <label className="flex items-center justify-center h-12 px-4 border rounded-md cursor-pointer text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground">
-              <Upload className="w-6 h-4 mr-4" /> Upload an image
+              <Input
+                id="items-input"
+                placeholder="Type or paste your items here..."
+                value={list}
+                onChange={(e) => setList(e.target.value)}
+                className="w-full !px-4 !py-3 text-base"
+              />
+            </div>
+
+            {/* Upload Button */}
+            <label className="flex items-center justify-center h-12 px-4 border rounded-md cursor-pointer text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition">
+              <Upload className="w-5 h-5 mr-2" /> Upload an image
               <input
                 type="file"
                 accept="image/*"
@@ -55,14 +66,17 @@ export const Hero5 = () => {
             </label>
 
             {/* Search Button */}
-            <Button size="lg" className="h-12 px-6 flex items-center gap-2">
+            <Button
+              size="lg"
+              className="h-12 px-6 flex items-center justify-center gap-2"
+            >
               Search <MoveRight className="w-4 h-4" />
             </Button>
           </div>
 
-          {/* Show uploaded file name */}
+          {/* Uploaded File */}
           {file && (
-            <p className="text-sm text-muted-foreground mt-2">
+            <p className="text-sm text-muted-foreground mt-4">
               Uploaded: {file.name}
             </p>
           )}

@@ -11,11 +11,28 @@ body {
   background-size: cover;
   background-image: url("./assets/245.jpg");
 }
-.hero
-{
-    background-color: white;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    padding: 32px;
-    width: auto;
+.hero {
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 1rem; 
+  width: 100%;
+  max-width: 800px;   
+  margin: 0 auto;     /* centers horizontally */
+  box-sizing: border-box;
+}
+
+/* Small screens */
+@media (max-width: 640px) {
+  .hero {
+    padding: 1rem;  /* tighter padding on mobile */
+    max-width: 90%;
+  }
+}
+
+/* Large screens */
+@media (min-width: 1024px) {
+  .hero {
+    padding: 2rem;  /* more breathing space on desktop */
+  }
 }
