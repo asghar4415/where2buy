@@ -1,16 +1,67 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MoveRight, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import axios from "axios";
+const baseURL = import.meta.env.VITE_BACKEND_API_URL;
 
 export const Hero5 = () => {
   const [list, setList] = useState("");
   const [file, setFile] = useState(null);
+  const [location, setLocation] = useState({
+    latitude: null,
+    longitude: null,
+  });
+
+  useEffect(() => {
+    getGeoLocation();
+  }, []);
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
     }
+  };
+
+  const handleInputChange = (e) => {
+    setList(e.target.value);
+  };
+
+  const getGeoLocation = async () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+      },
+      (error) => {
+        console.error(error);
+        alert("Unable to retrieve your location.");
+      }
+    );
+  };
+
+  const handleSearch = async () => {
+    var text = list;
+    var inputfile = file;
+
+    if (text === "" && inputfile === null) {
+      alert("Please enter your items or upload an image");
+      return;
+    }
+
+    const response = await axios.post(`${baseURL}/search`, {
+      text: text,
+      location: location,
+    });
+
+    console.log("response", response);
   };
 
   return (
@@ -49,7 +100,7 @@ export const Hero5 = () => {
                 id="items-input"
                 placeholder="Type or paste your items here..."
                 value={list}
-                onChange={(e) => setList(e.target.value)}
+                onChange={handleInputChange}
                 className="w-full !px-4 !py-3 text-base"
               />
             </div>
@@ -69,6 +120,7 @@ export const Hero5 = () => {
             <Button
               size="lg"
               className="h-12 px-6 flex items-center justify-center gap-2"
+              onClick={handleSearch}
             >
               Search <MoveRight className="w-4 h-4" />
             </Button>
