@@ -12,7 +12,7 @@ export const searchShops = async (req, res) => {
     const { text, location } = req.body;
     const userLocation = location;
 
-    console.log("userLocation", userLocation);
+    // console.log("userLocation", userLocation);
 
     if (!text || !userLocation) {
       return res
@@ -53,6 +53,7 @@ export const searchShops = async (req, res) => {
 
     const geminiData = await geminiResponse.json();
 
+
     const aiText =
       geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
     let cleanText = aiText.replace(/```json|```/g, "").trim();
@@ -64,6 +65,7 @@ export const searchShops = async (req, res) => {
       console.error("Failed to parse AI response:", aiText);
       return res.status(500).json({ error: "Failed to parse AI response" });
     }
+    console.log("items", items);
 
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: "No valid items found in the request" });
@@ -73,12 +75,12 @@ export const searchShops = async (req, res) => {
     const onlineResults = await getOnlineShops(items, userLocation);
 
     // Step 3: Get offline shop results using Google Maps API
-    const offlineResults = await getOfflineShops(items, userLocation);
+    // const offlineResults = await getOfflineShops(items, userLocation);
 
     res.json({
       items,
       online: onlineResults,
-      offline: offlineResults,
+      // offline: offlineResults,
     });
   } catch (error) {
     console.error("Search shops error:", error);
@@ -103,7 +105,21 @@ const getOnlineShops = async (items, location) => {
               {
                 parts: [
                   {
-                    text: `For the item "${item}" in location with coordinates ${location.lat}, ${location.lng}, suggest the best online shopping platforms and return them as a JSON array with objects containing platform name and search URL. Include popular platforms like Amazon, eBay, local e-commerce sites, etc.`,
+                    text: `You are given an item: "${item}" and a location with coordinates: ${location.latitude}, ${location.longitude}.
+Find and list the BEST online stores or sellers NEAR this location that sell this item. 
+The stores can include:
+- E-commerce websites (local or global)
+- Instagram shops
+- Facebook pages
+- Any online sellers specific to that region
+
+Focus on LOCAL and NEARBY options first, but include popular platforms if necessary.
+Return ONLY a valid JSON array, where each object has:
+{
+  "platform": "Store or Page Name",
+  "url": "Direct link to the store or search page"
+}`,
+
                   },
                 ],
               },
