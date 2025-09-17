@@ -11,7 +11,9 @@ export const searchShops = async (req, res) => {
   try {
     const { text, location } = req.body;
     const userLocation = location;
+    console.log(userLocation)
 
+    console.log("hardcoded location", { latitude: 24.90368, longitude: 67.076096 });
     // console.log("userLocation", userLocation);
 
     if (!text || !userLocation) {

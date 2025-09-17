@@ -17,6 +17,10 @@ export const Hero5 = () => {
     getGeoLocation();
   }, []);
 
+  useEffect(() => {
+    console.log("Updated location:", location);
+  }, [location]);
+
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
@@ -27,38 +31,45 @@ export const Hero5 = () => {
     setList(e.target.value);
   };
 
-  const getGeoLocation = async () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        });
-      },
-      (error) => {
-        console.error(error);
-        alert("Unable to retrieve your location.");
+  const getGeoLocation = () => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        alert("Geolocation is not supported by your browser.");
+        reject("Not supported");
       }
-    );
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const coords = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+          setLocation(coords);
+          resolve(coords);
+        },
+        (error) => {
+          console.error(error);
+          alert("Unable to retrieve your location.");
+          reject(error);
+        }
+      );
+    });
   };
 
   const handleSearch = async () => {
-    var text = list;
-    var inputfile = file;
-
-    if (text === "" && inputfile === null) {
+    if (list === "" && file === null) {
       alert("Please enter your items or upload an image");
       return;
     }
 
+    let coords = location;
+    if (!coords.latitude || !coords.longitude) {
+      coords = await getGeoLocation(); // wait until resolved
+    }
+
     const response = await axios.post(`${baseURL}/search`, {
-      text: text,
-      location: location,
+      text: list,
+      location: coords,
     });
 
     console.log("response", response);
