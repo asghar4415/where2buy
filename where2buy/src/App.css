@@ -22,6 +22,16 @@ body {
   box-sizing: border-box;
 }
 
+.padding-1
+{
+  padding-bottom: 2rem;
+;
+}
+.padding-2
+{
+  padding-bottom: .5rem;
+}
+
 /* Small screens */
 @media (max-width: 640px) {
   .hero {

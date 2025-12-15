@@ -6,236 +6,167 @@ dotenv.config();
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
-
 export const searchShops = async (req, res) => {
   try {
     const { text, location } = req.body;
-    const userLocation = location;
-    console.log(userLocation)
 
-    console.log("hardcoded location", { latitude: 24.90368, longitude: 67.076096 });
-    // console.log("userLocation", userLocation);
-
-    if (!text || !userLocation) {
-      return res
-        .status(400)
-        .json({ error: "Text and user location are required" });
+    // 1. Validate Input
+    if (!text || !location) {
+      return res.status(400).json({ error: "Text and user location are required" });
     }
 
+    // 2. Validate Keys
     if (!GEMINI_API_KEY || !GOOGLE_MAPS_API_KEY) {
-      return res
-        .status(500)
-        .json({ error: "API keys are not configured" });
+      return res.status(500).json({ error: "API keys are not configured" });
     }
 
-    // Step 1: Use Gemini API to extract individual items
-    const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+    // --- Step 1: Use Gemini to Understand and Categorize ---
+   const geminiResponse = await fetch(
+      // UPDATED URL: Changed 'gemini-1.5-flash' to 'gemini-2.5-flash'
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `Extract individual shopping items from this list: "${text}" and return them as a JSON array of strings only.`,
-                },
-              ],
-            },
-          ],
+          contents: [{
+            parts: [{
+              text: `Analyze this shopping list: "${text}". 
+                     Return a valid JSON array where each object has:
+                     - "query": The cleaned up item name (e.g., "Nike Air Max", "Milk").
+                     - "category": Choose one from ["electronics", "fashion", "grocery", "pharmacy", "hardware", "general"].
+                     
+                     Example Output: [{"query": "Milk", "category": "grocery"}, {"query": "Iphone cable", "category": "electronics"}]
+                     Do not include markdown formatting.`
+            }]
+          }]
         }),
       }
     );
-
     if (!geminiResponse.ok) {
-      console.error("Gemini API error:", geminiResponse.status, geminiResponse.statusText);
-      return res.status(500).json({ error: "Failed to process request with AI" });
+      const errorText = await geminiResponse.text();
+      console.error("Gemini API Error Detail:", errorText); 
+      throw new Error(`Gemini API Failed: ${geminiResponse.status}`);
     }
 
     const geminiData = await geminiResponse.json();
-
-
-    const aiText =
-      geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-    let cleanText = aiText.replace(/```json|```/g, "").trim();
-
-    let items = [];
+    const aiText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+    const cleanText = aiText.replace(/```json|```/g, "").trim();
+    
+    let processedItems = [];
     try {
-      items = JSON.parse(cleanText || "[]");
+      processedItems = JSON.parse(cleanText);
     } catch (e) {
-      console.error("Failed to parse AI response:", aiText);
       return res.status(500).json({ error: "Failed to parse AI response" });
     }
-    console.log("items", items);
 
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: "No valid items found in the request" });
+    if (!Array.isArray(processedItems) || processedItems.length === 0) {
+      return res.status(400).json({ error: "No items identified" });
     }
 
-    // Step 2: Get online shop results using Gemini API
-    const onlineResults = await getOnlineShops(items, userLocation);
+    console.log("Processed Items:", processedItems);
 
-    // Step 3: Get offline shop results using Google Maps API
-    // const offlineResults = await getOfflineShops(items, userLocation);
+    // --- Step 2: Process Online and Offline Results in Parallel ---
+    
+    const finalResults = await Promise.all(processedItems.map(async (itemObj) => {
+      // 1. Get Online Smart Links (Synchronous generation)
+      const onlineOptions = getOnlineLinks(itemObj);
 
-    res.json({
-      items,
-      online: onlineResults,
-      // offline: offlineResults,
-    });
+      // 2. Get Offline Map Results (Async API call)
+      const offlineOptions = await getOfflineLocations(itemObj, location);
+
+      return {
+        item: itemObj.query,
+        category: itemObj.category,
+        online: onlineOptions,
+        offline: offlineOptions
+      };
+    }));
+
+    // Send the unified response
+    res.json({ results: finalResults });
+
   } catch (error) {
     console.error("Search shops error:", error);
     res.status(500).json({ error: "Server error" });
   }
 };
 
-// Helper function to get online shop results using Gemini API
-const getOnlineShops = async (items, location) => {
-  const onlineResults = [];
-  
-  for (const item of items) {
-    try {
-      // Use Gemini API to suggest online shopping platforms based on item and location
-      const geminiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: `You are given an item: "${item}" and a location with coordinates: ${location.latitude}, ${location.longitude}.
-Find and list the BEST online stores or sellers NEAR this location that sell this item. 
-The stores can include:
-- E-commerce websites (local or global)
-- Instagram shops
-- Facebook pages
-- Any online sellers specific to that region
+// --- Helper: Generate Smart Online Links ---
+// This doesn't use AI. It uses logic to give the best reliable links.
+const getOnlineLinks = (itemObj) => {
+  const q = encodeURIComponent(itemObj.query);
+  const links = [];
 
-Focus on LOCAL and NEARBY options first, but include popular platforms if necessary.
-Return ONLY a valid JSON array, where each object has:
-{
-  "platform": "Store or Page Name",
-  "url": "Direct link to the store or search page"
-}`,
-
-                  },
-                ],
-              },
-            ],
-          }),
-        }
-      );
-
-      if (!geminiResponse.ok) {
-        console.error(`Gemini API error for online shops "${item}":`, geminiResponse.status);
-        onlineResults.push({
-          item,
-          platforms: [],
-          error: "Failed to get online shop suggestions"
-        });
-        continue;
-      }
-
-      const geminiData = await geminiResponse.json();
-      const aiText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-      let cleanText = aiText.replace(/```json|```/g, "").trim();
-
-      let platforms = [];
-      try {
-        platforms = JSON.parse(cleanText || "[]");
-      } catch (e) {
-        console.error("Failed to parse online shops AI response:", aiText);
-        // Fallback to default platforms
-        platforms = [
-          {
-            name: "Amazon",
-            url: `https://www.amazon.com/s?k=${encodeURIComponent(item)}`
-          },
-          {
-            name: "eBay",
-            url: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(item)}`
-          }
-        ];
-      }
-
-      onlineResults.push({
-        item,
-        platforms: platforms
-      });
-    } catch (error) {
-      console.error(`Error getting online shops for item "${item}":`, error);
-      onlineResults.push({
-        item,
-        platforms: [],
-        error: "Error occurred while getting online shop suggestions"
-      });
-    }
+  // 1. Category Specific Links
+  if (itemObj.category === "electronics") {
+    links.push({ platform: "Daraz", url: `https://www.daraz.pk/catalog/?q=${q}` });
+    links.push({ platform: "PriceOye", url: `https://priceoye.pk/search?q=${q}` });
+  } 
+  else if (itemObj.category === "fashion") {
+    links.push({ platform: "Daraz", url: `https://www.daraz.pk/catalog/?q=${q}` });
+    links.push({ platform: "Outfitters (Search)", url: `https://outfitters.com.pk/search?q=${q}` });
+  } 
+  else if (itemObj.category === "grocery") {
+    links.push({ platform: "Krave Mart", url: `https://kravemart.com.pk/search?q=${q}` });
+    links.push({ platform: "PandaMart", url: `https://www.foodpanda.pk/` }); // Deep linking is hard for panda, generic link is safer
+  }
+  else if (itemObj.category === "pharmacy") {
+    links.push({ platform: "Dawaai.pk", url: `https://dawaai.pk/search/index?search=${q}` });
   }
 
-  return onlineResults;
-};
-
-// Helper function to get offline shop results using Google Maps API
-const getOfflineShops = async (items, location) => {
-  const offlineResults = [];
+  // 2. Global Fallbacks (Always included)
+  links.push({ platform: "Google Shopping", url: `https://www.google.com/search?tbm=shop&q=${q}` });
+  links.push({ platform: "Amazon", url: `https://www.amazon.com/s?k=${q}` });
   
-  for (const item of items) {
-    try {
-      const mapsUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
-        item
-      )}&location=${location.lat},${
-        location.lng
-      }&radius=5000&key=${GOOGLE_MAPS_API_KEY}`;
+  // 3. Social Search
+  const tagParams = itemObj.query.replace(/\s+/g, '');
+  links.push({ platform: "Instagram Tags", url: `https://www.instagram.com/explore/tags/${tagParams}/` });
 
-      const mapsRes = await fetch(mapsUrl);
-      
-      if (!mapsRes.ok) {
-        console.error(`Google Maps API error for item "${item}":`, mapsRes.status);
-        offlineResults.push({
-          item,
-          shops: [],
-          error: "Failed to fetch nearby shops"
-        });
-        continue;
-      }
-
-      const mapsData = await mapsRes.json();
-
-      if (mapsData.status !== 'OK' && mapsData.status !== 'ZERO_RESULTS') {
-        console.error(`Google Maps API error for item "${item}":`, mapsData.status);
-        offlineResults.push({
-          item,
-          shops: [],
-          error: mapsData.error_message || "Failed to fetch nearby shops"
-        });
-        continue;
-      }
-
-      offlineResults.push({
-        item,
-        shops: (mapsData.results || []).map((s) => ({
-          name: s.name,
-          address: s.formatted_address,
-          rating: s.rating || null,
-          openNow: s.opening_hours?.open_now ?? null,
-          placeId: s.place_id,
-          types: s.types || []
-        })),
-      });
-    } catch (error) {
-      console.error(`Error searching for item "${item}":`, error);
-      offlineResults.push({
-        item,
-        shops: [],
-        error: "Error occurred while searching"
-      });
-    }
-  }
-
-  return offlineResults;
+  return links;
 };
 
+// --- Helper: Fetch Offline Locations via Google Maps ---
+const getOfflineLocations = async (itemObj, location) => {
+  try {
+    const lat = location.latitude;
+    const lng = location.longitude;
+
+    // SMART QUERY LOGIC:
+    // If someone wants "Milk", searching "Milk" on maps is bad. Searching "Grocery Store" is good.
+    // If someone wants "Nike Shoes", searching "Nike Shoes" is good.
+    
+    let mapQuery = itemObj.query;
+    
+    if (itemObj.category === "grocery") {
+      // Prioritize finding the store type, not the specific item
+      mapQuery = "grocery store super market"; 
+    } else if (itemObj.category === "pharmacy") {
+      mapQuery = "pharmacy medical store";
+    } else {
+      // For fashion/electronics, append "store" to find physical outlets
+      mapQuery = `${itemObj.query} store`;
+    }
+
+    const mapsUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(mapQuery)}&location=${lat},${lng}&radius=5000&key=${GOOGLE_MAPS_API_KEY}`;
+
+    const mapsRes = await fetch(mapsUrl);
+    const mapsData = await mapsRes.json();
+
+    if (mapsData.status !== "OK") {
+      return []; // Return empty if no results or error
+    }
+
+    // Return top 3 results formatted cleanly
+    return mapsData.results.slice(0, 3).map((s) => ({
+      name: s.name,
+      address: s.formatted_address,
+      rating: s.rating || "N/A",
+      openStatus: s.opening_hours?.open_now ? "Open Now" : "Closed/Unknown",
+      directionLink: `https://www.google.com/maps/dir/?api=1&destination_place_id=${s.place_id}`
+    }));
+
+  } catch (error) {
+    console.error(`Offline search error for ${itemObj.query}:`, error);
+    return [];
+  }
+};
